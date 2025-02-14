@@ -23,7 +23,7 @@
 #define THROTTLING_MODE_COUNT    1  // To limit viewership of log output
 #define THROTTLING_MODE_TIME     2  // To limit viewership of log time interval
 
-#define LOG_THROTTLING_RECORDER_SIZE    (10)
+#define LOG_THROTTLING_RECORDER_SIZE    (10)  // 大小取决于每秒输出不同位置的日志输出次数
 
 uint32_t BKDRHash(char *str)
 {
@@ -40,16 +40,17 @@ uint32_t BKDRHash(char *str)
 
 /**
  * @brief  log timestamp
+ * @param  today_ms  读取毫秒级的当前时间
+ * @return  日志时间
  */
 char *get_current_time(uint32_t *today_ms)
 {
     static char currentTime[20] = {0};
     // Used to obtain the complete timestamp including the date
     static bool time_all = true;
-    // Because there are multiple calls to the time interface, in order to ensure the uniqueness of the timestamp
-    static uint16_t time_us = 0;
 
     static uint8_t minute_history = 0;
+    // 更新分钟级时间比对历史
     if (strlen(currentTime) > 10) {
         minute_history = (currentTime[9] - '0') * 10 + (currentTime[10] - '0');
     }
@@ -59,29 +60,30 @@ char *get_current_time(uint32_t *today_ms)
     struct tm* date = localtime((time_t *)&now);
     memset(currentTime, 0, sizeof(currentTime));
     strftime(currentTime, sizeof(currentTime), "%M", date);
+    // 时间分钟级
     uint8_t minute = (currentTime[0] - '0') * 10 + (currentTime[1] - '0');
 
+    // 分钟变化时，显示完整时间
     if (minute != minute_history) {
         time_all = true;
     }
-    if (time_all && today_ms == NULL || today_ms != NULL) {
+
+    // 入参空，且在分钟级时间发生变化时返回完整时间，否则返回s.ms
+    // 入参非空返回完整时间，且入参拿走毫秒级时间
+    if (time_all || today_ms != NULL) {
+        // 保证首条日志带完整时间
         if (today_ms == NULL) {
             time_all = false;
-        } else {
-            time_us = now.tv_usec/1000;
         }
         strftime(currentTime, sizeof(currentTime), "%m/%d %H:%M:%S", date);
         snprintf(currentTime + 14, 5, ".%03ld", now.tv_usec / 1000);
     } else {
-        if (time_us == 0) {
-            time_us = now.tv_usec/1000;
-        }
         strftime(currentTime, sizeof(currentTime), "%S", date);
-        snprintf(currentTime + 2, 5, ".%03d", time_us);
+        snprintf(currentTime + 2, 5, ".%03ld", now.tv_usec / 1000);
     }
 
     if (today_ms != NULL) {
-        // Get the number of seconds for the day
+        // Get the number of milliseconds for the day
         *today_ms = now.tv_sec%86400*1000 + now.tv_usec/1000;
     }
 
@@ -118,6 +120,7 @@ bool log_throttling(char *file, uint16_t line, uint8_t log_hz)
     char time_stamp[20];
     memcpy(time_stamp, get_current_time(&today_ms), sizeof(time_stamp));
 
+    // 首次进入
     if (log_throttling_handle.empty) {
         log_data[0].hash = hash;
         log_data[0].today_ms = today_ms;
@@ -130,28 +133,37 @@ bool log_throttling(char *file, uint16_t line, uint8_t log_hz)
 
     // Clearing old data in logger with limited viewership of logs
     for (uint8_t i = 0; i < LOG_THROTTLING_RECORDER_SIZE; i++) {
+        // 因为要处理的就是高频日志，所以从最近的数据开始遍历命中率高，可提升效率
         uint8_t index = i + log_throttling_handle.write;
         if (index >= LOG_THROTTLING_RECORDER_SIZE) {
             index -= LOG_THROTTLING_RECORDER_SIZE;
         }
-        if (log_data[index].today_ms == 0) {
+
+        // 跳过空数据，且仅处理同一位置的日志
+        // 仅处理 hash 相同的日志可以节省时间，但副作用是部分受控日志不会打印出，会被覆盖
+        // 缓解此副作用：1、放开hash限制；2、增大缓存log_data大小
+        if (log_data[index].today_ms == 0 || log_data[i].hash != hash) {
             continue;
         }
+
+        uint32_t time_range = today_ms - log_data[index].today_ms;
+
 #if CFG_THROTTLING_MODE == THROTTLING_MODE_TIME
-        if (today_ms - log_data[index].today_ms >= 1000/log_hz) {
+        // 同一位置日志输出自由后，打印受控的数量信息，借助 time_range 与本条日志时间做差可算出受控时间
+        if (time_range >= 1000/log_hz) {
             if (log_data[index].count > 0) {
-                OUTPUT("W>%s " "{%.8s} " "<%s: %u> (%02u.%03u)""discard times: %u\r\n", time_stamp, TAG,
-                    log_data[index].file, log_data[index].line, log_data[index].today_ms/1000%60,
-                    log_data[index].today_ms%1000, log_data[index].count);
+                OUTPUT("W>%s " "{%.8s} " "<%s: %u> (-%ums) ""discard times: %u\r\n", time_stamp, TAG,
+                    log_data[index].file, log_data[index].line, time_range, log_data[index].count);
             }
             memset(&log_data[index], 0, sizeof(log_throttling_info));
         }
+
 #elif CFG_THROTTLING_MODE == THROTTLING_MODE_COUNT
-        if (today_ms - log_data[index].today_ms > 1000) {
-            if (log_data[index].count - log_hz > 0) {
-                OUTPUT("W>%s " "{%.8s} " "<%s: %u> (%02u.%03u)""discard times: %u\r\n", time_stamp, TAG,
-                    log_data[index].file, log_data[index].line, log_data[index].today_ms/1000%60,
-                    log_data[index].today_ms%1000, log_data[index].count - log_hz);
+        if (time_range > 1000) {
+            int32_t count = log_data[index].count - log_hz;
+            if (count > 0) {
+                OUTPUT("W>%s " "{%.8s} " "<%s: %u> (-%ums) ""discard times: %u\r\n", time_stamp, TAG,
+                    log_data[index].file, log_data[index].line, time_range, count);
             }
             memset(&log_data[index], 0, sizeof(log_throttling_info));
         }
@@ -162,21 +174,22 @@ bool log_throttling(char *file, uint16_t line, uint8_t log_hz)
     for (uint8_t i = 0; i < LOG_THROTTLING_RECORDER_SIZE; i++) {
         if (hash == log_data[i].hash) {
 #if CFG_THROTTLING_MODE == THROTTLING_MODE_TIME
+            // 同一位置日志输出间隔小于设定值，则丢弃
             if (today_ms - log_data[i].today_ms < 1000/log_hz) {
                 log_data[i].count += 1;
                 log_throttling_handle.read = i;
                 return true;
             }
 #elif CFG_THROTTLING_MODE == THROTTLING_MODE_COUNT
+            // 同一位置日志1秒内输出数量大于设定值，则丢弃
             if (today_ms - log_data[i].today_ms < 1000) {
                 log_data[i].count += 1;
-                if (log_data[i].count < log_hz) {
-                    return false;
-                } else {
+                if (log_data[i].count > log_hz) {
                     return true;
                 }
             }
 #endif
+            return false;
         }
     }
 
@@ -202,14 +215,19 @@ bool log_control(char *tag)
     CHECK(tag != NULL, "log control arg is null", false);
 
     switch (tag[0]) {
-        // exclude this tag
+        // 排除此标签
         case '!':
             return true;
-        // allow this tag
+        // 仅允许此标签
         case '#':
-            ret = true;
+            ret = true;  // 此后其他标签均受控
             strcpy(tag, tag+1);
             return false;
+        // 此标签开始不再受控
+        case '~':
+            ret = false;
+            strcpy(tag, tag+1);
+            break;
         default: break;
     }
 

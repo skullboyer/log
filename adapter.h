@@ -16,7 +16,8 @@
 #include <stdbool.h>
 #include <string.h>
 
-// V: view, VO: only view
+// V：裸数据，不带标签
+// V: view, VO: only view, NO: no output
 enum {LOG_LEVEL, V, D, I, W, E, NO, VO, DO, IO, WO, EO};
 
 #define FILTER    V  // log filtering level (exclude oneself)
@@ -27,7 +28,7 @@ enum {LOG_LEVEL, V, D, I, W, E, NO, VO, DO, IO, WO, EO};
 #define LOGE(...)    LOG(E, __VA_ARGS__)
 
 #define OUTPUT    log_out
-#define TAG    "TAG"  // default tag
+#define TAG    "NoTag"  // default tag
 #define LOG_BUFFER_SIZE    (256)
 #define LOG_HZ    (0)  // 0: not care, >1: max number of ouput per second
 
