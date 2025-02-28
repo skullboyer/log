@@ -52,7 +52,10 @@ enum {LOG_LEVEL, V, D, I, W, E, NO, VO, DO, IO, WO, EO};
         level == V ? : OUTPUT("\r\n"); \
     } while(0)
 
-#define __FILENAME__    (strrchr(__FILE__, '\\') ? (strrchr(__FILE__, '\\') + 1) : __FILE__)
+#define UNIX_DIRECTORY_SEPARATOR    '/'
+#define WINDOWS_DIRECTORY_SEPARATOR    '\\'
+#define DIRECTORY_SEPARATOR    UNIX_DIRECTORY_SEPARATOR
+#define __FILENAME__    (strrchr(__FILE__, DIRECTORY_SEPARATOR) ? (strrchr(__FILE__, DIRECTORY_SEPARATOR) + 1) : __FILE__)
 #define UNUSED(x)    (void)(x)
 #define ASSERT(expr)    (void)((!!(expr)) || (OUTPUT("%s assert fail: \"%s\" @ %s, %u\r\n", TAG, #expr, __FILE__, __LINE__), assert_abort()))
 #define CHECK_MSG(expr, msg, ...) \
