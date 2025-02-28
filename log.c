@@ -272,7 +272,7 @@ static int init_log_file(void)
 {
     logFile = fopen("Log.log", "w+");
     if (logFile == NULL) {
-        printf("Failed to open log file.\n");
+        printf("Failed to open log file.\r\n");
         return -1;
     }
     return 0;
@@ -280,11 +280,18 @@ static int init_log_file(void)
 
 static int output_file(FILE *file, char *buf, uint16_t len)
 {
-    if (file != NULL) {
-        fwrite(buf, len, 1, file);
-        fflush(file);
+    if (file == NULL) {
+        printf("Failed to write log file.\r\n");
+        return -1;
     }
 
+    if (buf == NULL) {
+        LOGE("arg is null");
+        return -2;
+    }
+
+    fwrite(buf, len, 1, file);
+    fflush(file);
     return 0;
 }
 #endif
@@ -292,7 +299,7 @@ static int output_file(FILE *file, char *buf, uint16_t len)
 #if CFG_LOG_BACKEND_TERMINAL
 static int output_terminal(char *buf)
 {
-    printf("%s", buf);
+    printf("%s\r\n", buf);
     return 0;
 }
 #endif
@@ -383,7 +390,9 @@ int log_deinit(void)
 {
     int ret = 0;
 #if CFG_LOG_BACKEND_FILE
-    ret = fclose(logFile);
+    if (logFile != NULL) {
+        ret = fclose(logFile);
+    }
 #endif
     return ret;
 }

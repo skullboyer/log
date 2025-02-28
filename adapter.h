@@ -20,7 +20,7 @@
 // V: view, VO: only view, NO: no output
 enum {LOG_LEVEL, V, D, I, W, E, NO, VO, DO, IO, WO, EO};
 
-#define FILTER    V  // log filtering level (exclude oneself)
+#define FILTER    D  // log filtering level (exclude oneself)
 #define LOGV(...)    LOG(V, __VA_ARGS__)
 #define LOGD(...)    LOG(D, __VA_ARGS__)
 #define LOGI(...)    LOG(I, __VA_ARGS__)
