@@ -36,11 +36,13 @@ enum {LOG_LEVEL, V, D, I, W, E, NO, VO, DO, IO, WO, EO};
 // E>09/16 11:17:33.990 {TEST-sku} <test: 373> This is test.
 #define LOG(level, ...) \
     do { \
+        char tag[] = TAG; \
         if (level + NO == FILTER) { \
         } else if (level < FILTER) { \
-            break; \
+            if (!log_privilege(tag)) { \
+                break; \
+            } \
         } \
-        char tag[] = TAG; \
         if (log_control(tag)) break; \
         bool jump = false; \
         level == V ? : LOG_HZ == 0 ? : (jump = log_throttling(__FILENAME__, __LINE__, LOG_HZ)); \
@@ -77,3 +79,4 @@ int log_out(const char *format, ...);
 char *get_current_time(uint32_t *today_ms);
 bool log_throttling(char *file, uint16_t line, uint8_t log_hz);
 bool log_control(char *tag);
+bool log_privilege(char *tag);

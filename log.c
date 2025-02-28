@@ -208,6 +208,9 @@ bool log_throttling(char *file, uint16_t line, uint8_t log_hz)
 
 /**
  * @brief  control log output with tags
+ *
+ * @note
+ *  log模块 加个头标识进行输出控制
  */
 bool log_control(char *tag)
 {
@@ -220,14 +223,42 @@ bool log_control(char *tag)
             return true;
         // 仅允许此标签
         case '#':
-            ret = true;  // 此后其他标签均受控
+            ret = true;  // 此后其他标签均受控，除特权标签'*'
             strcpy(tag, tag+1);
             return false;
-        // 此标签开始不再受控
+        // 此标签开始不再受控，解除标签'#'控制
         case '~':
             ret = false;
             strcpy(tag, tag+1);
             break;
+        // 此标签不受控，包括等级
+        case '*':
+            strcpy(tag, tag+1);
+            return false;
+        default: break;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief  privilege log output with tags
+ *
+ * @note
+ *  '*'tag不受等级控制：
+ *    方便调试 比如要查看指定Tag的所有日志 尤其是debug级别
+ *    一般在开发、调试时加较多日志，稳定后就会去除，直接删除则不方便在出问题后继续分析，所以一般控制log输出级别为info，
+ *    调试日志级别为debug，就是为了随时激活
+ */
+bool log_privilege(char *tag)
+{
+    static bool ret = false;
+    CHECK(tag != NULL, "log privilege arg is null", false);
+
+    switch (tag[0]) {
+        // 此标签不受控，包括等级
+        case '*':
+            return true;
         default: break;
     }
 
