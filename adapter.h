@@ -31,6 +31,11 @@ enum {LOG_LEVEL, V, D, I, W, E, NO, VO, DO, IO, WO, EO};
 #define TAG    "NoTag"  // default tag
 #define LOG_BUFFER_SIZE    (256)
 #define LOG_HZ    (0)  // 0: not care, >1: max number of ouput per second
+#if CFG_LOG_LOCATION
+#define LOG_CONTENT(level)    OUTPUT(#level">%s " "{%.8s} " "%u:%s() ", get_current_time(NULL), tag, __LINE__, __func__)
+#else
+#define LOG_CONTENT(level)    OUTPUT(#level">%s ", get_current_time(NULL))
+#endif
 
 // Level - Date Time - {Tag} - <func: line> - message
 // E>09/16 11:17:33.990 {TEST-sku} <test: 373> This is test.
@@ -49,7 +54,7 @@ enum {LOG_LEVEL, V, D, I, W, E, NO, VO, DO, IO, WO, EO};
         if (jump) break; \
         char buffer[LOG_BUFFER_SIZE]; \
         sprintf(buffer, __VA_ARGS__); \
-        level == V ? : OUTPUT(#level">%s " "{%.8s} " "%u:%s() ", get_current_time(NULL), tag, __LINE__, __func__); \
+        level == V ? : LOG_CONTENT(level); \
         OUTPUT(buffer); \
         level == V ? : OUTPUT("\r\n"); \
     } while(0)

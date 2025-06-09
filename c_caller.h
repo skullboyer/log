@@ -32,7 +32,7 @@
 #ifdef CALLER_PRINT
 
 #define LOG_CALLER(func) \
-    LOGD("[ccall] %s <- %s (%s:%d)", func, CALLER_INFO)
+    LOGD("[CCALL] %s <= %s (%s:%d)", func, CALLER_INFO)
 
 #define CALL_FUNC_ARG(func, ...) \
     ({ \
