@@ -10,11 +10,18 @@
  */
 #pragma once
 
+#ifdef __cplusplus
+    extern "C" {
+#endif
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <string.h>
+
+#define CFG_ENV_EMBEDDED    1
+#define CFG_LOG_LOCATION    1
 
 // V：裸数据，不带标签
 // V: view, VO: only view, NO: no output
@@ -50,7 +57,7 @@ enum {LOG_LEVEL, V, D, I, W, E, NO, VO, DO, IO, WO, EO};
         } \
         if (log_control(tag)) break; \
         bool jump = false; \
-        level == V ? : LOG_HZ == 0 ? : (jump = log_throttling(__FILENAME__, __LINE__, LOG_HZ)); \
+        level == V ? (void)0 : LOG_HZ == 0 ? (void)0 : (jump = log_throttling(__FILENAME__, __LINE__, LOG_HZ)); \
         if (jump) break; \
         char buffer[LOG_BUFFER_SIZE]; \
         sprintf(buffer, __VA_ARGS__); \
@@ -77,11 +84,36 @@ enum {LOG_LEVEL, V, D, I, W, E, NO, VO, DO, IO, WO, EO};
 #define GET_MACRO(...)    VA_NUM_ARGS_IMPL(__VA_ARGS__, CHECK_MSG, CHECK_MSG_PRE)
 #define CHECK(expr, ...)    GET_MACRO(__VA_ARGS__)(expr, __VA_ARGS__)
 
-uint32_t BKDRHash(char *str);
+#if CFG_ENV_EMBEDDED
+
+#define LOG_FILE_OPEN      fopen
+#define LOG_FILE_WRITE     fwrite
+#define LOG_FILE_FLUASH    fflush
+#define LOG_FILE_CLOSE     fclose
+
+#define LOG_FLASH_READ
+#define LOG_FLASH_WRITE
+#define LOG_FLASH_FLUSH
+#define LOG_FLASH_WRITE
+
+#else
+
+#define LOG_FILE_OPEN      fopen
+#define LOG_FILE_WRITE     fwrite
+#define LOG_FILE_FLUASH    fflush
+#define LOG_FILE_CLOSE     fclose
+
+#endif
+
+uint32_t BKDRHash(const char *str);
 int log_init(void);
 int log_deinit(void);
 int log_out(const char *format, ...);
 char *get_current_time(uint32_t *today_ms);
-bool log_throttling(char *file, uint16_t line, uint8_t log_hz);
+bool log_throttling(const char *file, uint16_t line, uint8_t log_hz);
 bool log_control(char *tag);
-bool log_privilege(char *tag);
+bool log_privilege(const char *tag);
+
+#ifdef __cplusplus
+}
+#endif

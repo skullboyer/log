@@ -15,8 +15,8 @@
 
 #undef TAG
 #define TAG    "LOG"
-#define CFG_LOG_BACKEND_TERMINAL    0
-#define CFG_LOG_BACKEND_FILE        1
+#define CFG_LOG_BACKEND_TERMINAL    1
+#define CFG_LOG_BACKEND_FILE        0
 #define CFG_LOG_BACKEND_FLASH       0
 #define CFG_LOG_COMPRESS            0
 #define CFG_THROTTLING_MODE         THROTTLING_MODE_COUNT
@@ -25,7 +25,7 @@
 
 #define LOG_THROTTLING_RECORDER_SIZE    (10)  // 大小取决于每秒输出不同位置的日志输出次数
 
-uint32_t BKDRHash(char *str)
+uint32_t BKDRHash(const char *str)
 {
     uint32_t seed = 131;  // 31 131 1313 13131 131313 etc..
     uint32_t hash = 0;
@@ -93,7 +93,7 @@ char *get_current_time(uint32_t *today_ms)
 /**
  * @brief log throttling
  */
-bool log_throttling(char *file, uint16_t line, uint8_t log_hz)
+bool log_throttling(const char *file, uint16_t line, uint8_t log_hz)
 {
     typedef struct {
         uint32_t hash;
@@ -250,7 +250,7 @@ bool log_control(char *tag)
  *    一般在开发、调试时加较多日志，稳定后就会去除，直接删除则不方便在出问题后继续分析，所以一般控制log输出级别为info，
  *    调试日志级别为debug，就是为了随时激活
  */
-bool log_privilege(char *tag)
+bool log_privilege(const char *tag)
 {
     static bool ret = false;
     CHECK(tag != NULL, "log privilege arg is null", false);
@@ -270,7 +270,7 @@ FILE *logFile = NULL;
 
 static int init_log_file(void)
 {
-    logFile = fopen("Log.log", "w+");
+    logFile = LOG_FILE_OPEN("Log.log", "w+");
     if (logFile == NULL) {
         printf("Failed to open log file.\r\n");
         return -1;
@@ -290,8 +290,8 @@ static int output_file(FILE *file, char *buf, uint16_t len)
         return -2;
     }
 
-    fwrite(buf, len, 1, file);
-    fflush(file);
+    LOG_FILE_WRITE(buf, len, 1, file);
+    LOG_FILE_FLUASH(file);
     return 0;
 }
 #endif
@@ -299,7 +299,7 @@ static int output_file(FILE *file, char *buf, uint16_t len)
 #if CFG_LOG_BACKEND_TERMINAL
 static int output_terminal(char *buf)
 {
-    printf("%s\r\n", buf);
+    printf("%s", buf);
     return 0;
 }
 #endif
@@ -391,7 +391,7 @@ int log_deinit(void)
     int ret = 0;
 #if CFG_LOG_BACKEND_FILE
     if (logFile != NULL) {
-        ret = fclose(logFile);
+        ret = LOG_FILE_CLOSE(logFile);
     }
 #endif
     return ret;
@@ -402,7 +402,7 @@ int log_out(const char *format, ...)
     int ret = 0;
     va_list args;
     va_start(args, format);
-    char log_buffer[LOG_BUFFER_SIZE];
+    char log_buffer[LOG_BUFFER_SIZE] = {0};
     vsnprintf(log_buffer, sizeof(log_buffer), format, args);
     uint16_t len = strlen(log_buffer);
 
